@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Submit Guard Fixture</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top, rgba(191, 219, 254, 0.45), transparent 36%),
+          linear-gradient(180deg, #f8fafc, #e2e8f0);
+        color: #0f172a;
+      }
+
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+
+      .panel {
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 18px;
+        padding: 24px;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+      }
+
+      h1 {
+        margin-top: 0;
+        margin-bottom: 8px;
+        font-size: 32px;
+        line-height: 1.1;
+      }
+
+      p,
+      label {
+        font-size: 15px;
+        line-height: 1.55;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        margin-top: 14px;
+        font-weight: 600;
+      }
+
+      input,
+      textarea,
+      button {
+        font: inherit;
+      }
+
+      input,
+      textarea {
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 10px 12px;
+      }
+
+      textarea {
+        min-height: 180px;
+        resize: vertical;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-top: 18px;
+      }
+
+      button {
+        border: none;
+        border-radius: 999px;
+        padding: 11px 18px;
+        background: #0f172a;
+        color: #ffffff;
+        cursor: pointer;
+      }
+
+      .meta {
+        margin-top: 18px;
+        color: #475569;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <h1>Compose update</h1>
+        <p>Local fixture page for extension E2E tests. The form never leaves this page.</p>
+
+        <form id="compose-form">
+          <label for="subject">Subject</label>
+          <input id="subject" name="subject" type="text" value="Weekly update" />
+
+          <label for="message">Message</label>
+          <textarea id="message" name="message">
+Quick status update.
+
+Attached is the final plan and the link below for review.
+          </textarea>
+
+          <div class="actions">
+            <button id="submit-button" type="submit">Send update</button>
+            <span id="status" class="meta">submitted=false count=0</span>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      window.__submitted = false;
+      window.__submitCount = 0;
+
+      const form = document.getElementById("compose-form");
+      const status = document.getElementById("status");
+
+      function updateStatus() {
+        status.textContent = `submitted=${window.__submitted} count=${window.__submitCount}`;
+      }
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        window.__submitted = true;
+        window.__submitCount += 1;
+        updateStatus();
+      });
+
+      window.__resetSubmitState = () => {
+        window.__submitted = false;
+        window.__submitCount = 0;
+        updateStatus();
+      };
+
+      updateStatus();
+    </script>
+  </body>
+</html>

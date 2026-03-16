@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Submit Guard Options</title>
+    <link rel="stylesheet" href="./options.css" />
+  </head>
+  <body>
+    <main class="options">
+      <header class="hero">
+        <p class="eyebrow">Submit Guard</p>
+        <h1>Options</h1>
+        <p class="intro">
+          Local-only controls for risky phrases, per-site mode, and prompt counts. No backend. No
+          analytics. Minimal permissions.
+        </p>
+      </header>
+
+      <section class="panel" aria-labelledby="stats-title">
+        <h2 id="stats-title">Local counters</h2>
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span class="stat-label">Prompts shown</span>
+            <strong class="stat-value" id="global-count">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Enabled sites</span>
+            <strong class="stat-value" id="enabled-count">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Known sites</span>
+            <strong class="stat-value" id="known-count">0</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="phrases-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="phrases-title">Risky phrases</h2>
+            <p class="section-copy">
+              One phrase per line. These are only used for sites set to “Risky phrases only.”
+            </p>
+          </div>
+        </div>
+
+        <label class="field" for="risky-phrases">
+          <span class="field-label">Phrase list</span>
+          <textarea
+            id="risky-phrases"
+            rows="8"
+            spellcheck="false"
+            placeholder="attach&#10;urgent&#10;see link"
+          ></textarea>
+        </label>
+
+        <div class="button-row">
+          <button id="save-phrases" type="button">Save phrases</button>
+          <button id="reset-phrases" class="secondary" type="button">Reset defaults</button>
+        </div>
+        <p id="phrases-status" class="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="sites-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="sites-title">Site settings</h2>
+            <p class="section-copy">
+              Hosts appear here after you use the popup once. Counts stay local to this browser.
+            </p>
+          </div>
+        </div>
+
+        <p id="site-count" class="site-summary" role="status" aria-live="polite">
+          Loading site settings...
+        </p>
+        <p id="sites-status" class="status" role="status" aria-live="polite"></p>
+        <div id="site-list" class="site-list"></div>
+      </section>
+    </main>
+    <script type="module" src="./options.js"></script>
+  </body>
+</html>

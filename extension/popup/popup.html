@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Submit Guard</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <p class="eyebrow">Submit Guard</p>
+      <h1>Protect this site</h1>
+
+      <p class="site-label">Current hostname</p>
+      <p class="hostname" id="hostname">Unavailable</p>
+
+      <label class="toggle-row" for="site-toggle">
+        <input id="site-toggle" type="checkbox" />
+        <span>Enable submit confirmation</span>
+      </label>
+
+      <label class="field" for="mode-select">
+        <span class="field-label">Mode</span>
+        <select id="mode-select">
+          <option value="always_confirm">Always confirm</option>
+          <option value="risky_phrases_only">Risky phrases only</option>
+        </select>
+      </label>
+
+      <p class="hint">
+        “Risky phrases only” uses the local phrase list from options. If anything breaks, submit
+        still stays fail-open.
+      </p>
+
+      <p id="status" role="status" aria-live="polite"></p>
+
+      <p class="options-link">
+        <a href="../options/options.html" target="_blank" rel="noreferrer">Open options</a>
+      </p>
+    </main>
+    <script type="module" src="./popup.js"></script>
+  </body>
+</html>
