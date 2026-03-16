@@ -23,6 +23,7 @@ export const DEFAULT_RISKY_PHRASES = Object.freeze([
 const DEFAULT_SITE_SETTINGS = Object.freeze({
   enabled: false,
   mode: DEFAULT_SITE_MODE,
+  clickGuardEnabled: false,
   countConfirmShown: 0
 });
 
@@ -112,6 +113,7 @@ export async function getSiteRuntimeSettings(hostname) {
     hostname: normalizedHostname,
     enabled: currentSettings.enabled,
     mode: currentSettings.mode,
+    clickGuardEnabled: currentSettings.clickGuardEnabled,
     riskyPhrases: [...riskyPhrases]
   };
 }
@@ -140,6 +142,13 @@ export async function setSiteMode(hostname, mode) {
   return updateSiteSettings(hostname, (currentSettings) => ({
     ...currentSettings,
     mode: sanitizeSiteMode(mode)
+  }));
+}
+
+export async function setSiteClickGuardEnabled(hostname, clickGuardEnabled) {
+  return updateSiteSettings(hostname, (currentSettings) => ({
+    ...currentSettings,
+    clickGuardEnabled: clickGuardEnabled === true
   }));
 }
 
@@ -258,6 +267,7 @@ function cloneSiteSettings(rawSettings) {
   return {
     enabled: safeSettings.enabled === true,
     mode: sanitizeSiteMode(safeSettings.mode),
+    clickGuardEnabled: safeSettings.clickGuardEnabled === true,
     countConfirmShown: sanitizeCount(safeSettings.countConfirmShown)
   };
 }

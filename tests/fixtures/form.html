@@ -111,7 +111,8 @@ Attached is the final plan and the link below for review.
 
           <div class="actions">
             <button id="submit-button" type="submit">Send update</button>
-            <span id="status" class="meta">submitted=false count=0</span>
+            <button id="js-submit-button" type="button">Create with JS</button>
+            <span id="status" class="meta">submitted=false native=0 js=0</span>
           </div>
         </form>
       </section>
@@ -119,25 +120,38 @@ Attached is the final plan and the link below for review.
 
     <script>
       window.__submitted = false;
-      window.__submitCount = 0;
+      window.__nativeSubmitCount = 0;
+      window.__jsSubmitCount = 0;
 
       const form = document.getElementById("compose-form");
+      const jsSubmitButton = document.getElementById("js-submit-button");
       const status = document.getElementById("status");
 
       function updateStatus() {
-        status.textContent = `submitted=${window.__submitted} count=${window.__submitCount}`;
+        status.textContent =
+          `submitted=${window.__submitted} ` +
+          `native=${window.__nativeSubmitCount} ` +
+          `js=${window.__jsSubmitCount}`;
       }
 
       form.addEventListener("submit", (event) => {
         event.preventDefault();
         window.__submitted = true;
-        window.__submitCount += 1;
+        window.__nativeSubmitCount += 1;
+        updateStatus();
+      });
+
+      jsSubmitButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        window.__submitted = true;
+        window.__jsSubmitCount += 1;
         updateStatus();
       });
 
       window.__resetSubmitState = () => {
         window.__submitted = false;
-        window.__submitCount = 0;
+        window.__nativeSubmitCount = 0;
+        window.__jsSubmitCount = 0;
         updateStatus();
       };
 

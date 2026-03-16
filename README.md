@@ -6,6 +6,8 @@ showing a confirmation dialog before submit on sites the user explicitly enables
 ## Current Scope
 
 - Off by default, enabled per site from the popup
+- Standard guard for native form submits
+- Advanced Click Guard for submit-like JS clicks, off by default per site
 - Per-site mode:
   - `always_confirm`
   - `risky_phrases_only`
@@ -34,6 +36,9 @@ showing a confirmation dialog before submit on sites the user explicitly enables
 
 - Protection is enabled by hostname, not globally.
 - The content script is injected only after the user enables the current site.
+- Standard mode targets native form submits.
+- Advanced Click Guard targets submit-like clicks used by JS-driven apps and may not work on every
+  app or workflow.
 - If the extension cannot show its confirmation UI, it fails open and does not intentionally block
   submission.
 - The committed production manifest does not add host permissions.

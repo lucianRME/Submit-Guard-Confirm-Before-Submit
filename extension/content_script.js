@@ -28,17 +28,24 @@
     "urgent",
     "final"
   ];
+  const CLICKABLE_SELECTOR =
+    "button, input[type='submit'], input[type='button'], a[role='button'], div[role='button']";
+  const SUBMIT_WORD_PATTERN =
+    /\b(?:submit|send|save|create|publish|post|apply|confirm|continue)\b/i;
 
   const currentHostname = normalizeHostname(window.location.hostname);
   let activeDialog = null;
+  let bypassState = createEmptyBypassState();
   let guardState = readBootstrapState() || {
     hostname: currentHostname,
     enabled: Boolean(currentHostname),
     mode: MODE_ALWAYS_CONFIRM,
+    clickGuardEnabled: false,
     riskyPhrases: [...DEFAULT_RISKY_PHRASES]
   };
 
   document.addEventListener("submit", handleSubmitCapture, true);
+  document.addEventListener("click", handleClickCapture, true);
   window.addEventListener(BOOTSTRAP_EVENT, handleBootstrapUpdate);
 
   if (chrome.storage && chrome.storage.onChanged) {
@@ -74,6 +81,7 @@
         hostname: currentHostname,
         enabled: false,
         mode: MODE_ALWAYS_CONFIRM,
+        clickGuardEnabled: false,
         riskyPhrases: [...DEFAULT_RISKY_PHRASES]
       };
       return;
@@ -94,6 +102,10 @@
           stored[LEGACY_ENABLED_HOSTS_KEY]
         ),
         mode: resolveSiteMode(currentHostname, stored[SITE_SETTINGS_KEY]),
+        clickGuardEnabled: resolveSiteClickGuardEnabled(
+          currentHostname,
+          stored[SITE_SETTINGS_KEY]
+        ),
         riskyPhrases:
           stored[RISKY_PHRASES_KEY] === undefined
             ? [...DEFAULT_RISKY_PHRASES]
@@ -110,7 +122,7 @@
       return;
     }
 
-    if (form.getAttribute(BYPASS_ATTR) === "1") {
+    if (shouldBypassSubmit(form, event.submitter)) {
       return;
     }
 
@@ -128,7 +140,11 @@
 
     let confirmContext;
     try {
-      confirmContext = buildConfirmContext(form, currentState);
+      confirmContext = buildConfirmContext({
+        currentState,
+        form,
+        triggerElement: event.submitter instanceof HTMLElement ? event.submitter : null
+      });
     } catch (_error) {
       return;
     }
@@ -137,30 +153,89 @@
       return;
     }
 
+    interceptAction({
+      event,
+      confirmContext,
+      hostname: currentState.hostname,
+      onConfirm() {
+        proceedWithSubmit(form, event.submitter);
+      }
+    });
+  }
+
+  function handleClickCapture(event) {
+    const currentState = guardState;
+    if (!currentState.enabled || !currentState.clickGuardEnabled) {
+      return;
+    }
+
+    const submitLike = resolveSubmitLikeClick(event.target);
+    if (!submitLike) {
+      return;
+    }
+
+    if (shouldBypassClick(submitLike.element)) {
+      return;
+    }
+
+    if (activeDialog) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      activeDialog.focus();
+      return;
+    }
+
+    let confirmContext;
+    try {
+      confirmContext = buildConfirmContext({
+        currentState,
+        form: submitLike.form,
+        triggerElement: submitLike.element
+      });
+    } catch (_error) {
+      return;
+    }
+
+    if (!confirmContext.shouldConfirm) {
+      return;
+    }
+
+    interceptAction({
+      event,
+      confirmContext,
+      hostname: currentState.hostname,
+      onConfirm() {
+        proceedWithClickAction(submitLike);
+      }
+    });
+  }
+
+  function interceptAction({ event, confirmContext, hostname, onConfirm }) {
     event.preventDefault();
     event.stopImmediatePropagation();
-    void notifyConfirmShown(currentState.hostname);
+    void notifyConfirmShown(hostname);
 
     openConfirmDialog(confirmContext)
       .then((result) => {
         if (result === "confirm") {
-          submitForm(form, event.submitter);
+          onConfirm();
           return;
         }
 
         if (result === "disable") {
-          void disableCurrentSite(currentState.hostname);
+          void disableCurrentSite(hostname);
         }
       })
-      .catch(() => {
-        submitForm(form, event.submitter);
+      .catch((error) => {
+        warnFailOpen("confirm interception", error);
+        onConfirm();
       });
   }
 
-  function buildConfirmContext(form, currentState) {
+  function buildConfirmContext({ currentState, form, triggerElement }) {
     if (currentState.mode === MODE_RISKY_PHRASES_ONLY) {
-      const formText = extractFormText(form);
-      const matches = findMatchingPhrases(formText, currentState.riskyPhrases);
+      const guardText = extractGuardText(form, triggerElement);
+      const matches = findMatchingPhrases(guardText, currentState.riskyPhrases);
       if (matches.length === 0) {
         return { shouldConfirm: false };
       }
@@ -180,13 +255,10 @@
     };
   }
 
-  function submitForm(form, submitter) {
-    form.setAttribute(BYPASS_ATTR, "1");
-    window.setTimeout(() => {
-      form.removeAttribute(BYPASS_ATTR);
-    }, 250);
-
+  function proceedWithSubmit(form, submitter) {
     try {
+      armBypass({ form });
+
       if (typeof form.requestSubmit === "function") {
         if (submitter instanceof HTMLElement && submitter.isConnected) {
           form.requestSubmit(submitter);
@@ -197,9 +269,247 @@
       }
 
       HTMLFormElement.prototype.submit.call(form);
-    } catch (_error) {
-      form.removeAttribute(BYPASS_ATTR);
+    } catch (error) {
+      warnFailOpen("native submit", error);
+
+      try {
+        HTMLFormElement.prototype.submit.call(form);
+      } catch (fallbackError) {
+        warnFailOpen("native submit fallback", fallbackError);
+      }
     }
+  }
+
+  function proceedWithClickAction(submitLike) {
+    const { element, form, preferRequestSubmit } = submitLike;
+
+    try {
+      armBypass({ element, form });
+
+      if (
+        preferRequestSubmit &&
+        form instanceof HTMLFormElement &&
+        typeof form.requestSubmit === "function"
+      ) {
+        form.requestSubmit(element);
+        return;
+      }
+
+      if (element instanceof HTMLElement && typeof element.click === "function") {
+        element.click();
+        return;
+      }
+
+      if (preferRequestSubmit && form instanceof HTMLFormElement) {
+        HTMLFormElement.prototype.submit.call(form);
+      }
+    } catch (error) {
+      warnFailOpen("click guard", error);
+
+      try {
+        if (element instanceof HTMLElement && typeof element.click === "function") {
+          element.click();
+          return;
+        }
+
+        if (form instanceof HTMLFormElement) {
+          HTMLFormElement.prototype.submit.call(form);
+        }
+      } catch (fallbackError) {
+        warnFailOpen("click guard fallback", fallbackError);
+      }
+    }
+  }
+
+  function resolveSubmitLikeClick(target) {
+    const baseElement =
+      target instanceof Element
+        ? target
+        : target instanceof Node
+          ? target.parentElement
+          : null;
+    if (!(baseElement instanceof Element)) {
+      return null;
+    }
+
+    const clickable = baseElement.closest(CLICKABLE_SELECTOR);
+    if (!(clickable instanceof HTMLElement) || isDisabledClickable(clickable)) {
+      return null;
+    }
+
+    const form = resolveEnclosingForm(clickable);
+    if (!(form instanceof HTMLFormElement) && !SUBMIT_WORD_PATTERN.test(getClickableLabel(clickable))) {
+      return null;
+    }
+
+    return {
+      element: clickable,
+      form,
+      preferRequestSubmit: isNativeSubmitControl(clickable) && form instanceof HTMLFormElement
+    };
+  }
+
+  function resolveEnclosingForm(element) {
+    if (element instanceof HTMLButtonElement || element instanceof HTMLInputElement) {
+      return element.form;
+    }
+
+    const nearestForm = element.closest("form");
+    return nearestForm instanceof HTMLFormElement ? nearestForm : null;
+  }
+
+  function isDisabledClickable(element) {
+    if (element instanceof HTMLButtonElement || element instanceof HTMLInputElement) {
+      return element.disabled;
+    }
+
+    return element.getAttribute("aria-disabled") === "true";
+  }
+
+  function isNativeSubmitControl(element) {
+    if (element instanceof HTMLInputElement) {
+      return element.type === "submit";
+    }
+
+    if (element instanceof HTMLButtonElement) {
+      return !element.type || element.type === "submit";
+    }
+
+    return false;
+  }
+
+  function getClickableLabel(element) {
+    if (!(element instanceof HTMLElement)) {
+      return "";
+    }
+
+    const ariaLabel = element.getAttribute("aria-label");
+    if (ariaLabel && ariaLabel.trim()) {
+      return ariaLabel.trim();
+    }
+
+    if (element instanceof HTMLInputElement && element.value.trim()) {
+      return element.value.trim();
+    }
+
+    if (typeof element.innerText === "string" && element.innerText.trim()) {
+      return element.innerText.trim();
+    }
+
+    return typeof element.textContent === "string" ? element.textContent.trim() : "";
+  }
+
+  function shouldBypassSubmit(form, submitter) {
+    clearExpiredBypass();
+
+    const matchesBypass =
+      form.getAttribute(BYPASS_ATTR) === "1" ||
+      (isBypassActive() &&
+        (bypassState.form === form ||
+          (submitter instanceof HTMLElement && bypassState.element === submitter)));
+    if (!matchesBypass) {
+      return false;
+    }
+
+    form.removeAttribute(BYPASS_ATTR);
+    if (bypassState.form === form) {
+      bypassState.form = null;
+    }
+    if (
+      submitter instanceof HTMLElement &&
+      bypassState.element === submitter
+    ) {
+      submitter.removeAttribute(BYPASS_ATTR);
+      bypassState.element = null;
+    } else if (
+      bypassState.element instanceof HTMLElement &&
+      resolveEnclosingForm(bypassState.element) === form
+    ) {
+      bypassState.element.removeAttribute(BYPASS_ATTR);
+      bypassState.element = null;
+    }
+    cleanupBypassState();
+
+    return true;
+  }
+
+  function shouldBypassClick(element) {
+    clearExpiredBypass();
+
+    const matchesBypass =
+      element.getAttribute(BYPASS_ATTR) === "1" ||
+      (isBypassActive() && bypassState.element === element);
+    if (!matchesBypass) {
+      return false;
+    }
+
+    element.removeAttribute(BYPASS_ATTR);
+    if (bypassState.element === element) {
+      bypassState.element = null;
+    }
+    cleanupBypassState();
+
+    return true;
+  }
+
+  function armBypass({ element = null, form = null }) {
+    clearBypassNow();
+
+    bypassState = {
+      element: element instanceof HTMLElement ? element : null,
+      form: form instanceof HTMLFormElement ? form : null,
+      expiresAt: Date.now() + 1500
+    };
+
+    if (bypassState.element) {
+      bypassState.element.setAttribute(BYPASS_ATTR, "1");
+    }
+
+    if (bypassState.form) {
+      bypassState.form.setAttribute(BYPASS_ATTR, "1");
+    }
+
+    window.setTimeout(clearExpiredBypass, 1600);
+  }
+
+  function createEmptyBypassState() {
+    return {
+      element: null,
+      form: null,
+      expiresAt: 0
+    };
+  }
+
+  function isBypassActive() {
+    return bypassState.expiresAt > Date.now();
+  }
+
+  function clearExpiredBypass() {
+    if (isBypassActive()) {
+      return;
+    }
+
+    clearBypassNow();
+  }
+
+  function clearBypassNow() {
+    if (bypassState.element && bypassState.element.isConnected) {
+      bypassState.element.removeAttribute(BYPASS_ATTR);
+    }
+
+    if (bypassState.form && bypassState.form.isConnected) {
+      bypassState.form.removeAttribute(BYPASS_ATTR);
+    }
+
+    bypassState = createEmptyBypassState();
+  }
+
+  function cleanupBypassState() {
+    if (bypassState.element || bypassState.form) {
+      return;
+    }
+
+    bypassState = createEmptyBypassState();
   }
 
   function openConfirmDialog(confirmContext) {
@@ -438,29 +748,85 @@
     });
   }
 
-  function extractFormText(form) {
-    const chunks = [];
-
-    try {
-      const formData = new FormData(form);
-      for (const value of formData.values()) {
-        if (typeof value === "string" && value.trim()) {
-          chunks.push(value.trim());
-        }
-      }
-    } catch (_error) {
-      // Ignore FormData failures and fall back to contenteditable text.
+  function extractGuardText(form, triggerElement) {
+    if (form instanceof HTMLFormElement) {
+      return extractTextFromContainer(form);
     }
 
-    const editableElements = form.querySelectorAll("[contenteditable=''], [contenteditable='true']");
+    const nearestContainer =
+      triggerElement instanceof Element
+        ? triggerElement.closest("main, section, article, [role='dialog'], [role='form']")
+        : null;
+
+    return extractTextFromContainer(nearestContainer || document.body);
+  }
+
+  function extractTextFromContainer(container) {
+    if (!(container instanceof Element)) {
+      return "";
+    }
+
+    const chunks = [];
+    const seen = new Set();
+
+    if (container instanceof HTMLFormElement) {
+      try {
+        const formData = new FormData(container);
+        for (const value of formData.values()) {
+          pushChunk(chunks, seen, value);
+        }
+      } catch (_error) {
+        // Ignore FormData failures and keep collecting visible text input.
+      }
+    }
+
+    const currentActiveElement = document.activeElement;
+    if (
+      currentActiveElement instanceof HTMLElement &&
+      container.contains(currentActiveElement)
+    ) {
+      pushChunk(chunks, seen, readEditableValue(currentActiveElement));
+    }
+
+    const editableSelector = [
+      "textarea",
+      "input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='password'])",
+      "[contenteditable='']",
+      "[contenteditable='true']",
+      "[role='textbox']"
+    ].join(", ");
+    const editableElements = container.querySelectorAll(editableSelector);
     for (const element of editableElements) {
-      const text = element.textContent;
-      if (typeof text === "string" && text.trim()) {
-        chunks.push(text.trim());
+      pushChunk(chunks, seen, readEditableValue(element));
+      if (chunks.length >= 12) {
+        break;
       }
     }
 
     return chunks.join("\n");
+  }
+
+  function readEditableValue(element) {
+    if (element instanceof HTMLTextAreaElement || element instanceof HTMLInputElement) {
+      return element.value;
+    }
+
+    return element.textContent;
+  }
+
+  function pushChunk(chunks, seen, value) {
+    const normalizedValue = typeof value === "string" ? value.trim() : "";
+    if (!normalizedValue) {
+      return;
+    }
+
+    const key = normalizedValue.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    chunks.push(normalizedValue);
   }
 
   function findMatchingPhrases(text, riskyPhrases) {
@@ -536,6 +902,7 @@
       hostname: bootstrapHostname || currentHostname,
       enabled: safeState.enabled === true,
       mode: sanitizeMode(safeState.mode),
+      clickGuardEnabled: safeState.clickGuardEnabled === true,
       riskyPhrases: sanitizeRiskyPhrases(safeState.riskyPhrases)
     };
   }
@@ -571,6 +938,16 @@
     return sanitizeMode(currentSettings && currentSettings.mode);
   }
 
+  function resolveSiteClickGuardEnabled(hostname, rawSiteSettings) {
+    const normalizedHostname = normalizeHostname(hostname);
+    if (!normalizedHostname || !rawSiteSettings || typeof rawSiteSettings !== "object") {
+      return false;
+    }
+
+    const currentSettings = rawSiteSettings[normalizedHostname];
+    return Boolean(currentSettings && currentSettings.clickGuardEnabled === true);
+  }
+
   function sanitizeMode(value) {
     return value === MODE_RISKY_PHRASES_ONLY ? value : MODE_ALWAYS_CONFIRM;
   }
@@ -599,6 +976,10 @@
 
   function normalizeHostname(value) {
     return typeof value === "string" ? value.trim().toLowerCase() : "";
+  }
+
+  function warnFailOpen(scope, error) {
+    console.warn("Submit Guard fail-open:", scope, error);
   }
 
   function escapeHtml(value) {

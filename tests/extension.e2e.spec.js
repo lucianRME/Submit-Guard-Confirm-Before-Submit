@@ -44,19 +44,72 @@ test("shows the modal, passes axe, closes on Escape, cancels, and confirms once 
 
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
-    await expect(page.locator("#status")).toHaveText("submitted=false count=0");
+    await expect(page.locator("#status")).toHaveText("submitted=false native=0 js=0");
 
     await page.click("#submit-button");
     await expect(dialog).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.locator("#status")).toHaveText("submitted=false count=0");
+    await expect(page.locator("#status")).toHaveText("submitted=false native=0 js=0");
 
     await page.click("#submit-button");
     await expect(dialog).toBeVisible();
     await page.getByRole("button", { name: "Submit" }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.locator("#status")).toHaveText("submitted=true count=1");
+    await expect(page.locator("#status")).toHaveText("submitted=true native=1 js=0");
+  } finally {
+    await closeExtensionContext(extension);
+  }
+});
+
+test("click guard intercepts submit-like JS buttons", async () => {
+  const extension = await launchExtensionContext();
+
+  try {
+    const page = await extension.context.newPage();
+    await page.goto(fixtureServer.url("/form.html"));
+
+    await configureSiteWithPopup(extension, page, {
+      enabled: true,
+      clickGuardEnabled: true
+    });
+    await page.reload();
+
+    await page.click("#js-submit-button");
+    const dialog = page.getByRole("dialog", { name: "Confirm submission" });
+    await expect(dialog).toBeVisible();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(page.locator("#status")).toHaveText("submitted=false native=0 js=0");
+
+    await page.click("#js-submit-button");
+    await expect(dialog).toBeVisible();
+    await page.getByRole("button", { name: "Submit" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator("#status")).toHaveText("submitted=true native=0 js=1");
+  } finally {
+    await closeExtensionContext(extension);
+  }
+});
+
+test("click guard cooperates with native submit buttons", async () => {
+  const extension = await launchExtensionContext();
+
+  try {
+    const page = await extension.context.newPage();
+    await page.goto(fixtureServer.url("/form.html"));
+
+    await configureSiteWithPopup(extension, page, {
+      enabled: true,
+      clickGuardEnabled: true
+    });
+    await page.reload();
+
+    await page.click("#submit-button");
+    const dialog = page.getByRole("dialog", { name: "Confirm submission" });
+    await expect(dialog).toBeVisible();
+    await page.getByRole("button", { name: "Submit" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator("#status")).toHaveText("submitted=true native=1 js=0");
   } finally {
     await closeExtensionContext(extension);
   }
@@ -77,7 +130,7 @@ test("risky phrases only prompts selectively", async () => {
 
     await page.fill("#message", "Quick note with no trigger phrases.");
     await page.click("#submit-button");
-    await expect(page.locator("#status")).toHaveText("submitted=true count=1");
+    await expect(page.locator("#status")).toHaveText("submitted=true native=1 js=0");
     await expect(page.getByRole("dialog", { name: "Confirm submission" })).toHaveCount(0);
 
     await page.evaluate(() => window.__resetSubmitState());
@@ -88,7 +141,7 @@ test("risky phrases only prompts selectively", async () => {
     await expect(dialog).toBeVisible();
     await expect(page.getByText(/Matched phrases:/)).toBeVisible();
     await page.getByRole("button", { name: "Submit" }).click();
-    await expect(page.locator("#status")).toHaveText("submitted=true count=1");
+    await expect(page.locator("#status")).toHaveText("submitted=true native=1 js=0");
   } finally {
     await closeExtensionContext(extension);
   }
@@ -109,7 +162,7 @@ test("dont ask again disables the current site", async () => {
     await expect(dialog).toBeVisible();
     await page.getByRole("button", { name: "Don't ask again for this site" }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.locator("#status")).toHaveText("submitted=false count=0");
+    await expect(page.locator("#status")).toHaveText("submitted=false native=0 js=0");
 
     const popupPage = await openPopupForTarget(extension, page);
     await expect(popupPage.locator("#site-toggle")).not.toBeChecked();
@@ -117,7 +170,7 @@ test("dont ask again disables the current site", async () => {
 
     await page.reload();
     await page.click("#submit-button");
-    await expect(page.locator("#status")).toHaveText("submitted=true count=1");
+    await expect(page.locator("#status")).toHaveText("submitted=true native=1 js=0");
     await expect(page.getByRole("dialog", { name: "Confirm submission" })).toHaveCount(0);
   } finally {
     await closeExtensionContext(extension);
@@ -136,7 +189,7 @@ test("toggle off disables protection after reload", async () => {
     await page.reload();
 
     await page.click("#submit-button");
-    await expect(page.locator("#status")).toHaveText("submitted=true count=1");
+    await expect(page.locator("#status")).toHaveText("submitted=true native=1 js=0");
     await expect(page.getByRole("dialog", { name: "Confirm submission" })).toHaveCount(0);
   } finally {
     await closeExtensionContext(extension);
@@ -196,6 +249,16 @@ async function configureSiteWithPopup(extension, targetPage, options) {
       await expect(popupPage.locator("#status")).toContainText(
         options.enabled ? "Protection enabled" : "Protection disabled"
       );
+    }
+  }
+
+  if (typeof options.clickGuardEnabled === "boolean") {
+    const clickGuardToggle = popupPage.locator("#click-guard-toggle");
+    await expect(clickGuardToggle).toBeEnabled();
+
+    if ((await clickGuardToggle.isChecked()) !== options.clickGuardEnabled) {
+      await clickGuardToggle.click();
+      await expect(popupPage.locator("#status")).toContainText("Advanced click guard");
     }
   }
 

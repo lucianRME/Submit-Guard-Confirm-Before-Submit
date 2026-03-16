@@ -1,8 +1,14 @@
-import { getSiteSettings, setSiteEnabled, setSiteMode } from "../shared/storage.js";
+import {
+  getSiteSettings,
+  setSiteClickGuardEnabled,
+  setSiteEnabled,
+  setSiteMode
+} from "../shared/storage.js";
 
 const hostnameEl = document.getElementById("hostname");
 const toggleEl = document.getElementById("site-toggle");
 const modeEl = document.getElementById("mode-select");
+const clickGuardEl = document.getElementById("click-guard-toggle");
 const statusEl = document.getElementById("status");
 
 let currentTab = null;
@@ -13,6 +19,7 @@ void init();
 async function init() {
   toggleEl.disabled = true;
   modeEl.disabled = true;
+  clickGuardEl.disabled = true;
   setStatus("Loading...");
 
   try {
@@ -36,8 +43,10 @@ async function init() {
     toggleEl.checked = siteSettings.enabled;
     modeEl.value = siteSettings.mode;
     modeEl.dataset.previousMode = siteSettings.mode;
+    clickGuardEl.checked = siteSettings.clickGuardEnabled;
     toggleEl.disabled = false;
     modeEl.disabled = false;
+    syncClickGuardAvailability();
     setStatus(
       siteSettings.enabled
         ? "Protection enabled for this site."
@@ -46,6 +55,7 @@ async function init() {
 
     toggleEl.addEventListener("change", onToggleChanged);
     modeEl.addEventListener("change", onModeChanged);
+    clickGuardEl.addEventListener("change", onClickGuardChanged);
   } catch (_error) {
     setUnavailableState("Unable to load popup state.");
   }
@@ -59,6 +69,7 @@ async function onToggleChanged() {
   const nextEnabled = toggleEl.checked;
   toggleEl.disabled = true;
   modeEl.disabled = true;
+  clickGuardEl.disabled = true;
   setStatus("Saving...");
 
   try {
@@ -68,6 +79,7 @@ async function onToggleChanged() {
     setStatus("Unable to save site setting.", true);
     toggleEl.disabled = false;
     modeEl.disabled = false;
+    syncClickGuardAvailability();
     return;
   }
 
@@ -93,6 +105,7 @@ async function onToggleChanged() {
 
   toggleEl.disabled = false;
   modeEl.disabled = false;
+  syncClickGuardAvailability();
 }
 
 async function onModeChanged() {
@@ -105,6 +118,7 @@ async function onModeChanged() {
 
   toggleEl.disabled = true;
   modeEl.disabled = true;
+  clickGuardEl.disabled = true;
   setStatus("Saving mode...");
 
   try {
@@ -122,6 +136,36 @@ async function onModeChanged() {
 
   toggleEl.disabled = false;
   modeEl.disabled = false;
+  syncClickGuardAvailability();
+}
+
+async function onClickGuardChanged() {
+  if (!currentHostname) {
+    return;
+  }
+
+  const nextEnabled = clickGuardEl.checked;
+
+  toggleEl.disabled = true;
+  modeEl.disabled = true;
+  clickGuardEl.disabled = true;
+  setStatus("Saving advanced mode...");
+
+  try {
+    await setSiteClickGuardEnabled(currentHostname, nextEnabled);
+    setStatus(
+      nextEnabled
+        ? "Advanced click guard enabled for this site."
+        : "Advanced click guard disabled for this site."
+    );
+  } catch (_error) {
+    clickGuardEl.checked = !nextEnabled;
+    setStatus("Unable to save advanced click guard.", true);
+  }
+
+  toggleEl.disabled = false;
+  modeEl.disabled = false;
+  syncClickGuardAvailability();
 }
 
 function setUnavailableState(message) {
@@ -129,12 +173,18 @@ function setUnavailableState(message) {
   toggleEl.checked = false;
   toggleEl.disabled = true;
   modeEl.disabled = true;
+  clickGuardEl.checked = false;
+  clickGuardEl.disabled = true;
   setStatus(message, true);
 }
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
   statusEl.classList.toggle("status-error", isError);
+}
+
+function syncClickGuardAvailability() {
+  clickGuardEl.disabled = toggleEl.disabled || !toggleEl.checked;
 }
 
 async function getActiveTab() {

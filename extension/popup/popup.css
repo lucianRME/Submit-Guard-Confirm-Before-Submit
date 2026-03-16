@@ -56,6 +56,10 @@ h1 {
   margin: 0 0 14px;
 }
 
+.toggle-row-compact {
+  margin-bottom: 8px;
+}
+
 .field {
   margin: 0 0 8px;
 }
@@ -78,6 +82,10 @@ h1 {
 .hint {
   margin: 0 0 12px;
   font-size: 12px;
+}
+
+.hint-tight {
+  margin-bottom: 14px;
 }
 
 #status {

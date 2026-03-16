@@ -19,6 +19,7 @@ Optional:
 - Verifies `Escape` closes the modal
 - Verifies **Cancel** keeps the form unsubmitted
 - Verifies **Submit** submits exactly once
+- Verifies optional Click Guard intercepts a submit-like JS button
 - Verifies risky phrase mode only prompts when phrases match
 - Verifies “Don’t ask again for this site” disables protection locally
 - Verifies popup toggle-off stays disabled after reload
@@ -33,11 +34,13 @@ Optional:
 5. Submit again, click **Cancel**, and confirm the form still does not submit.
 6. Submit again, click **Submit**, and confirm the form submits once.
 7. Open the options page and confirm the local counter increases.
-8. Set the site mode to **Risky phrases only** and verify a harmless message submits without a prompt.
-9. Add risky language such as `attached`, `urgent`, or `link below` and confirm the modal appears.
-10. Use **Don’t ask again for this site** and confirm future submits on that host are not blocked.
-11. Disable protection from the popup, reload, and confirm the modal no longer appears.
-12. Repeat the same checks on at least 5 real sites/forms.
+8. Enable **Advanced: guard submit-like clicks** for the site and verify a JS-only button still
+   shows the modal before its handler runs.
+9. Set the site mode to **Risky phrases only** and verify a harmless message submits without a prompt.
+10. Add risky language such as `attached`, `urgent`, or `link below` and confirm the modal appears.
+11. Use **Don’t ask again for this site** and confirm future submits on that host are not blocked.
+12. Disable protection from the popup, reload, and confirm the modal no longer appears.
+13. Repeat the same checks on at least 5 real sites/forms.
 
 ## Suggested Real-Site Smoke Coverage
 

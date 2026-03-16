@@ -4,6 +4,7 @@ import {
   listKnownSites,
   parseRiskyPhrasesInput,
   resetRiskyPhrases,
+  setSiteClickGuardEnabled,
   setRiskyPhrases,
   setSiteEnabled,
   setSiteMode
@@ -92,6 +93,8 @@ async function onSiteListChanged(event) {
   try {
     if (action === "enabled" && target instanceof HTMLInputElement) {
       await setSiteEnabled(hostname, target.checked);
+    } else if (action === "click_guard" && target instanceof HTMLInputElement) {
+      await setSiteClickGuardEnabled(hostname, target.checked);
     } else if (action === "mode" && target instanceof HTMLSelectElement) {
       await setSiteMode(hostname, target.value);
     }
@@ -183,6 +186,16 @@ function renderSites(siteSettings) {
                   Risky phrases only
                 </option>
               </select>
+            </label>
+
+            <label class="site-toggle">
+              <input
+                type="checkbox"
+                data-action="click_guard"
+                data-hostname="${escapeHtml(site.hostname)}"
+                ${site.clickGuardEnabled ? "checked" : ""}
+              />
+              <span>Advanced: guard submit-like clicks</span>
             </label>
           </div>
         </article>
