@@ -110,3 +110,28 @@ h1 {
 .options-link a:hover {
   text-decoration: underline;
 }
+
+.brand-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.28);
+  color: #64748b;
+  font-size: 11px;
+}
+
+.brand-footer a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand-footer a:hover {
+  text-decoration: underline;
+}
+
+.brand-footer__dot {
+  opacity: 0.7;
+}

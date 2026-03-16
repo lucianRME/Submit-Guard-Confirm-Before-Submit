@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Submit Guard — Confirm Before Submit",
   "description": "Prevent accidental form submissions by confirming before submit.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "action": {
     "default_title": "Submit Guard",
     "default_popup": "popup/popup.html",

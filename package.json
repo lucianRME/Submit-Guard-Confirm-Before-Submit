@@ -1,7 +1,7 @@
 {
   "name": "submit-guard-confirm-before-submit",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "scripts": {
     "test": "playwright test",
     "test:a11y": "playwright test --grep @a11y"
