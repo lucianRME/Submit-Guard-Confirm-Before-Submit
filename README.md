@@ -44,3 +44,9 @@ showing a confirmation dialog before submit on sites the user explicitly enables
 - The committed production manifest does not add host permissions.
 - The Playwright harness loads a temporary localhost-only extension copy for CI reliability while
   keeping the shipped manifest minimal.
+
+## Support
+
+If Submit Guard is useful, you can support future development via GitHub Sponsors:
+
+https://github.com/sponsors/lucianRME
